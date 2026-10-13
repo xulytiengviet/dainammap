@@ -44,9 +44,9 @@ jobs:
               if not dest.is_file() or dest.stat().st_size < 100:
                   raise SystemExit(f'Missing/corrupt: {dest}')
               print(dest, dest.stat().st_size, 'bytes')
-          if expected['dainammap/assets/dai-nam-1838-source.png'].read_bytes()[:8] != b'\\x89PNG\\r\\n\\x1a\\n':
+          if expected['dainammap/assets/dai-nam-1838-source.png'].read_bytes()[:8] != b'\x89PNG\r\n\x1a\n':
               raise SystemExit('PNG signature invalid')
-          if expected['dainammap/assets/dai-nam-image-space.pmtiles'].read_bytes()[:8] != b'PMTiles\\x03':
+          if expected['dainammap/assets/dai-nam-image-space.pmtiles'].read_bytes()[:8] != b'PMTiles\x03':
               raise SystemExit('PMTiles v3 signature invalid')
           PY
       - name: Commit extracted assets to main
