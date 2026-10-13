@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Đại Nam Map | 1838 ↔ 2025</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;background:#f5f7fb;color:#192d43}
+header{background:#fff;border-bottom:1px solid #ddd;padding:12px 18px;display:flex;align-items:center;gap:15px;flex-wrap:wrap}
+h1{font-size:21px;margin:0}h1 span{color:#b43e2f}button{background:#fff;border:1px solid #cfdae8;padding:9px 13px;border-radius:8px;cursor:pointer}button:hover{background:#eaf2fc}
+.toolbar{display:flex;flex-wrap:wrap;gap:7px;margin-left:auto}
+main{padding:12px;max-width:1900px;margin:auto}.warning{font-size:13px;background:#fff8eb;border:1px solid #eedab6;padding:10px 13px;border-radius:8px;margin-bottom:12px}
+.maps{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pane{min-width:0;position:relative;background:white;border:1px solid #dee5f0;border-radius:10px;overflow:hidden}
+.map{height:75vh;min-height:480px}.pane h2{position:absolute;left:12px;top:8px;z-index:600;background:#fffffff0;border-radius:6px;padding:7px 11px;font-size:15px;pointer-events:none}
+.notice{position:absolute;bottom:10px;left:10px;z-index:600;background:#ffffffed;padding:7px 10px;border-radius:6px;max-width:85%;font-size:12px}
+#hist-status{position:absolute;right:12px;bottom:12px;z-index:650;background:#fff9;color:#7b2630;padding:8px;max-width:75%;border-radius:6px}
+footer{padding:14px 3px;font-size:12px;color:#566c7d}.single .pane:first-child{display:none}.single .maps{grid-template-columns:1fr}
+@media(max-width:850px){.maps{grid-template-columns:1fr}.map{height:52vh;min-height:360px}}
+</style></head><body>
+<header><h1>ĐẠI NAM <span>MAP</span></h1><span>Đối chiếu bản đồ Đại Nam và Việt Nam 2025</span><nav class="toolbar"><button id="overview">⤢ Toàn cảnh</button><button id="view">▣ Xem bản đồ 2025</button><button id="gcp">⬇ Mẫu điểm GCP</button><button id="reload">↻ Tải lại</button><a href="https://github.com/xulytiengviet/dainammap" rel="noopener" target="_blank">GitHub ↗</a></nav></header>
+<main id="shell"><div class="warning"><b>Phạm vi sử dụng:</b> Tư liệu được cung cấp có ghi “1838”; yêu cầu đối chiếu nguồn gốc và năm biên soạn. Lớp Đại Nam là <b>ảnh trong hệ tọa độ pixel, chưa được nắn chỉnh địa lý</b>. Vị trí lịch sử và đường biên không được diễn giải như dữ liệu đo đạc chính xác.</div>
+<div class="toolbar" id="places" style="margin:0 0 12px"><button data-place="hanoi">Hà Nội</button><button data-place="hue">Huế</button><button data-place="danang">Đà Nẵng</button><button data-place="saigon">Gia Định / TP.HCM</button><button data-place="mekong">ĐBSCL</button></div>
+<div class="maps"><section class="pane"><h2>Đại Nam Quốc · tư liệu ghi 1838</h2><div class="map" id="historic"></div><div id="hist-status" hidden></div><div class="notice">PMTiles v3 · tọa độ ảnh (không phải EPSG:3857)</div></section><section class="pane"><h2>Việt Nam · 2025</h2><div class="map" id="modern"></div><div class="notice">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · nền tham chiếu hiện đại, không mặc định có ranh giới hành chính 2025</div></section></div>
+<footer>© Long Ngo 2026 · Mã nguồn MIT · Chỉ phục vụ giáo dục, nghiên cứu lịch sử và GIS. Quyền ảnh tư liệu cần xác minh riêng. Bản đồ nền © OpenStreetMap contributors.</footer></main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script type="module">
+import{PMTiles}from'https://esm.sh/pmtiles@3.2.1';
+const historic=L.map('historic',{crs:L.CRS.Simple,minZoom:0,maxZoom:3,zoomSnap:.25,attributionControl:false});
+const extent=[[-256,0],[0,256]];historic.fitBounds(extent);historic.setMaxBounds([[-280,-25],[25,281]]);
+const modern=L.map('modern').setView([16.2,106.4],5);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(modern);
+const state=document.getElementById('hist-status');
+function status(t){state.hidden=false;state.textContent=t}
+const source='assets/dai-nam-image-space.pmtiles';
+async function loadHistoric(){
+ try{
+  const response=await fetch(source,{headers:{Range:'bytes=0-126'}});
+  if(!response.ok)throw Error('HTTP '+response.status);
+  const pm=new PMTiles(source);
+  await pm.getHeader();
+  const layer=L.GridLayer.extend({createTile(c,done){let img=document.createElement('img');img.width=256;img.height=256;
+   if(c.x<0||c.y<0||c.x>=2**c.z||c.y>=2**c.z){queueMicrotask(()=>done(null,img));return img}
+   pm.getZxy(c.z,c.x,c.y).then(t=>{if(!t){done(null,img);return}let u=URL.createObjectURL(new Blob([t.data],{type:'image/jpeg'}));img.onload=()=>{URL.revokeObjectURL(u);done(null,img)};img.onerror=()=>{URL.revokeObjectURL(u);done(Error('Tile decode'),img)};img.src=u}).catch(e=>done(e,img));return img;}});
+  new layer({minZoom:0,maxZoom:3,noWrap:true,bounds:L.latLngBounds(extent)}).addTo(historic);
+ }catch(e){
+  const im=new Image();im.onload=()=>{L.imageOverlay(im.src,[[-256,37.56],[0,218.44]]).addTo(historic);status('PMTiles chưa truy cập được; đang dùng ảnh PNG dự phòng')};
+  im.onerror=()=>status('Chưa có dữ liệu ảnh lịch sử trên GitHub. Tải lên assets/dai-nam-image-space.pmtiles hoặc assets/dai-nam-1838-source.png từ bộ ZIP.');
+  im.src='assets/dai-nam-1838-source.png';
+ }
+}loadHistoric();
+const places={hanoi:{ll:[21.0285,105.8542],px:[801,305]},hue:{ll:[16.4637,107.5909],px:[1014,671]},danang:{ll:[16.0544,108.2022],px:[1115,793]},saigon:{ll:[10.8231,106.6297],px:[1160,1222]},mekong:{ll:[10.1,105.65],px:[880,1310]}};
+let mark;document.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>{let p=places[b.dataset.place];modern.flyTo(p.ll,8);let xy=[-p.px[1]/8,(p.px[0]+300.5)/8];historic.flyTo(xy,2.3);if(mark)historic.removeLayer(mark);mark=L.circleMarker(xy,{radius:7,color:'#b9392b',weight:2,fillColor:'white',fillOpacity:1}).addTo(historic)});
+document.getElementById('overview').onclick=()=>{historic.fitBounds(extent);modern.fitBounds([[8,102],[23.5,110]])};
+document.getElementById('view').onclick=()=>{document.getElementById('shell').classList.toggle('single');setTimeout(()=>modern.invalidateSize(),200)};
+document.getElementById('reload').onclick=()=>location.reload();
+document.getElementById('gcp').onclick=()=>{let s='id,name,pixel_x,pixel_y,longitude,latitude,source,confidence\n1,Ha Noi,801,305,105.8542,21.0285,PROVISIONAL,low\n';let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([s],{type:'text/csv;charset=utf-8'}));a.download='gcp_template.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+</script></body></html>
