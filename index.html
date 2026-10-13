@@ -14,11 +14,11 @@ main{padding:12px;max-width:1900px;margin:auto}.warning{font-size:13px;backgroun
 #hist-status{position:absolute;right:12px;bottom:12px;z-index:650;background:#fff9;color:#7b2630;padding:8px;max-width:75%;border-radius:6px}
 footer{padding:14px 3px;font-size:12px;color:#566c7d}.single .pane:first-child{display:none}.single .maps{grid-template-columns:1fr}
 @media(max-width:850px){.maps{grid-template-columns:1fr}.map{height:52vh;min-height:360px}}
-</style></head><body>
-<header><h1>ĐẠI NAM <span>MAP</span></h1><span>Đối chiếu bản đồ Đại Nam và Việt Nam 2025</span><nav class="toolbar"><button id="overview">⤢ Toàn cảnh</button><button id="view">▣ Xem bản đồ 2025</button><button id="gcp">⬇ Mẫu điểm GCP</button><button id="reload">↻ Tải lại</button><a href="https://github.com/xulytiengviet/dainammap" rel="noopener" target="_blank">GitHub ↗</a></nav></header>
+.historic-only .pane:nth-child(2){display:none}.historic-only .maps{grid-template-columns:1fr}.historic-only .map{height:78vh}button:focus-visible,a:focus-visible{outline:3px solid #3886d9;outline-offset:2px}@media(min-width:1000px){.pane{box-shadow:0 6px 24px #22364c14}.map{height:calc(100vh - 205px);min-height:490px}}</style></head><body>
+<header><h1>ĐẠI NAM <span>MAP</span> · GIS</h1><span>Đối chiếu bản đồ Đại Nam và Việt Nam 2025</span><nav class="toolbar"><button id="overview">⤢ Toàn cảnh</button><button id="historicOnly">▣ Đại Nam</button><button id="split">⇄ Hai bản đồ</button><button id="view">▣ Xem bản đồ 2025</button><button id="gcp">⬇ Mẫu điểm GCP</button><button id="share">🔗 Chia sẻ</button><button id="reload">↻ Tải lại</button><a href="https://github.com/xulytiengviet/dainammap" rel="noopener" target="_blank">GitHub ↗</a></nav></header>
 <main id="shell"><div class="warning"><b>Phạm vi sử dụng:</b> Tư liệu được cung cấp có ghi “1838”; yêu cầu đối chiếu nguồn gốc và năm biên soạn. Lớp Đại Nam là <b>ảnh trong hệ tọa độ pixel, chưa được nắn chỉnh địa lý</b>. Vị trí lịch sử và đường biên không được diễn giải như dữ liệu đo đạc chính xác.</div>
 <div class="toolbar" id="places" style="margin:0 0 12px"><button data-place="hanoi">Hà Nội</button><button data-place="hue">Huế</button><button data-place="danang">Đà Nẵng</button><button data-place="saigon">Gia Định / TP.HCM</button><button data-place="mekong">ĐBSCL</button></div>
-<div class="maps"><section class="pane"><h2>Đại Nam Quốc · tư liệu ghi 1838</h2><div class="map" id="historic"></div><div id="hist-status" hidden></div><div class="notice">PMTiles v3 · tọa độ ảnh (không phải EPSG:3857)</div></section><section class="pane"><h2>Việt Nam · 2025</h2><div class="map" id="modern"></div><div class="notice">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · nền tham chiếu hiện đại, không mặc định có ranh giới hành chính 2025</div></section></div>
+<div class="maps"><section class="pane"><h2>Đại Nam Quốc · tư liệu ghi 1838</h2><div class="map" id="historic" role="region" aria-label="Ảnh lịch sử Đại Nam"></div><div id="hist-status" hidden></div><div class="notice">PMTiles v3 · tọa độ ảnh (không phải EPSG:3857)</div></section><section class="pane"><h2>Việt Nam · 2025</h2><div class="map" id="modern" role="region" aria-label="Bản đồ Việt Nam hiện đại"></div><div class="notice">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · nền tham chiếu hiện đại, không mặc định có ranh giới hành chính 2025</div></section></div>
 <footer>© Long Ngo 2026 · Mã nguồn MIT · Chỉ phục vụ giáo dục, nghiên cứu lịch sử và GIS. Quyền ảnh tư liệu cần xác minh riêng. Bản đồ nền © OpenStreetMap contributors.</footer></main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script type="module">
 import{PMTiles}from'https://esm.sh/pmtiles@3.2.1';
@@ -31,7 +31,7 @@ function status(t){state.hidden=false;state.textContent=t}
 const source='assets/dai-nam-image-space.pmtiles';
 async function loadHistoric(){
  try{
-  const response=await fetch(source,{headers:{Range:'bytes=0-126'}});
+  const response=await fetch(source,{headers:{Range:'bytes=0-126'},cache:'no-store'});
   if(!response.ok)throw Error('HTTP '+response.status);
   const pm=new PMTiles(source);
   await pm.getHeader();
@@ -50,5 +50,8 @@ let mark;document.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>{let
 document.getElementById('overview').onclick=()=>{historic.fitBounds(extent);modern.fitBounds([[8,102],[23.5,110]])};
 document.getElementById('view').onclick=()=>{document.getElementById('shell').classList.toggle('single');setTimeout(()=>modern.invalidateSize(),200)};
 document.getElementById('reload').onclick=()=>location.reload();
+document.getElementById('historicOnly').onclick=()=>{document.getElementById('shell').classList.remove('single');document.getElementById('shell').classList.toggle('historic-only');setTimeout(()=>historic.invalidateSize(),220)};
+document.getElementById('split').onclick=()=>{document.getElementById('shell').classList.remove('single','historic-only');setTimeout(()=>{historic.invalidateSize();modern.invalidateSize()},220)};
+document.getElementById('share').onclick=async()=>{try{await navigator.clipboard.writeText(location.href);alert('Đã sao chép liên kết bản đồ')}catch{prompt('Sao chép liên kết:',location.href)}};
 document.getElementById('gcp').onclick=()=>{let s='id,name,pixel_x,pixel_y,longitude,latitude,source,confidence\n1,Ha Noi,801,305,105.8542,21.0285,PROVISIONAL,low\n';let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([s],{type:'text/csv;charset=utf-8'}));a.download='gcp_template.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 </script></body></html>
