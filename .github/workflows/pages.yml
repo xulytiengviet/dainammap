@@ -20,7 +20,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Ensure historic tiles exist
         run: |
-          test -f assets/dai-nam-image-space.pmtiles || echo "::warning::Historic PMTiles has not been uploaded; map will display a notice."
+          test -s assets/dai-nam-image-space.pmtiles || { echo "::error::Missing assets/dai-nam-image-space.pmtiles"; exit 1; }
+          test -s assets/dai-nam-1838-source.png || { echo "::error::Missing assets/dai-nam-1838-source.png"; exit 1; }
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
