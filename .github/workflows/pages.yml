@@ -4,7 +4,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
@@ -18,10 +18,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Ensure historic tiles exist
+        with:
+          persist-credentials: true
+      - name: Extract verified map assets from uploaded ZIP
+        shell: bash
         run: |
-          test -s assets/dai-nam-image-space.pmtiles || { echo "::error::Missing assets/dai-nam-image-space.pmtiles"; exit 1; }
-          test -s assets/dai-nam-1838-source.png || { echo "::error::Missing assets/dai-nam-1838-source.png"; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          archive = Path('dainammap-webgis.zip')
+          expected = {
+            'dainammap/assets/dai-nam-1838-source.png': Path('assets/dai-nam-1838-source.png'),
+            'dainammap/assets/dai-nam-image-space.pmtiles': Path('assets/dai-nam-image-space.pmtiles'),
+          }
+          if not all(p.is_file() and p.stat().st_size > 100 for p in expected.values()):
+              if not archive.exists():
+                  raise SystemExit('Neither map assets nor dainammap-webgis.zip exist')
+              with ZipFile(archive) as z:
+                  for entry, dest in expected.items():
+                      if entry not in z.namelist():
+                          raise SystemExit(f'Missing archive entry: {entry}')
+                      dest.parent.mkdir(parents=True, exist_ok=True)
+                      dest.write_bytes(z.read(entry))
+          for dest in expected.values():
+              if not dest.is_file() or dest.stat().st_size < 100:
+                  raise SystemExit(f'Missing/corrupt: {dest}')
+              print(dest, dest.stat().st_size, 'bytes')
+          if expected['dainammap/assets/dai-nam-1838-source.png'].read_bytes()[:8] != b'\\x89PNG\\r\\n\\x1a\\n':
+              raise SystemExit('PNG signature invalid')
+          if expected['dainammap/assets/dai-nam-image-space.pmtiles'].read_bytes()[:8] != b'PMTiles\\x03':
+              raise SystemExit('PMTiles v3 signature invalid')
+          PY
+      - name: Commit extracted assets to main
+        shell: bash
+        run: |
+          if ! git ls-files --error-unmatch assets/dai-nam-image-space.pmtiles >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add assets/dai-nam-1838-source.png assets/dai-nam-image-space.pmtiles
+            git commit -m "data: synchronize historic PNG and PMTiles from uploaded ZIP [skip ci]"
+            git push origin HEAD:main || echo "::warning::Automatic commit blocked; assets will still be deployed in this run."
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
